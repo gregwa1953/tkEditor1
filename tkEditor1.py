@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 # ===============================================================
 #                     tkEditor1.py
 # ---------------------------------------------------------------
@@ -11,7 +13,7 @@
 # Original idea by Greg Walters
 # Original code by ChatGPT 5.0
 # Modified by Greg Walters
-# Version 0.1.0
+# Version 0.1.1
 # ===============================================================
 # Purpose:
 #    This file contains code to create a 'Metawidget' for Tkinter
@@ -26,356 +28,534 @@
 # change without notice.  There are many things that I would like
 # to see changed from the original ChatGPT version.
 # ===============================================================
-# Last modified on October 3, 2025
+# Last modified on October 5, 2025
 # ---------------------------------------------------------------
 # For usage, see the tkEditorDemo1 program.
 # ---------------------------------------------------------------
-
+"""
+Tkinter code editor with:
+- CodeText (auto-indent, configurable)
+- Line numbers gutter
+- Click + keyboard code folding (uses 'elide' tags)
+- Basic Python syntax highlighting
+"""
 
 import tkinter as tk
-import tkinter.ttk as ttk
+from tkinter import ttk
+from tkinter.scrolledtext import ScrolledText
+import tkinter.font as tkfont
 from tkinter.constants import *
 
+import keyword
 import re
 
 
-# _debug = True
+# ---------------------------
+# CodeText: Text subclass
+# ---------------------------
+class CodeText(tk.Text):
+    def __init__(self, master=None, indent_width=4, use_tabs=False, **kwargs):
+        super().__init__(master, **kwargs)
+        self.indent_width = indent_width
+        self.use_tabs = use_tabs
+        self.bind("<Return>", self._auto_indent)
+        # call highlight when text changes
+        self._highlight_after_id = None
+
+    def set_indent_width(self, spaces: int):
+        if isinstance(spaces, int) and spaces >= 0:
+            self.indent_width = spaces
+
+    def _get_line_indent(self, line_text: str) -> int:
+        """Return the number of leading spaces (treat tabs as indent_width)."""
+        if not line_text:
+            return 0
+        count = 0
+        for ch in line_text:
+            if ch == " ":
+                count += 1
+            elif ch == "\t":
+                count += self.indent_width
+            else:
+                break
+        return count
+
+    def _auto_indent(self, event):
+        """
+        Insert newline with indentation matching current line.
+        If the current (previous) line ends with ':', add additional indent.
+        """
+        insert_index = self.index("insert")
+        line_num = int(insert_index.split(".")[0])
+        line_text = self.get(f"{line_num}.0", f"{line_num}.end")
+
+        base_indent = self._get_line_indent(line_text)
+        new_indent = base_indent
+
+        if line_text.rstrip().endswith(":"):
+            new_indent += self.indent_width
+
+        # Decide whether to use tabs or spaces
+        if self.use_tabs and (self.indent_width % 1 == 0):
+            # convert indentation into tabs where appropriate (simple approach)
+            tabs = new_indent // self.indent_width
+            spaces = new_indent % self.indent_width
+            indent_str = "\t" * tabs + " " * spaces
+        else:
+            indent_str = " " * new_indent
+
+        self.insert("insert", "\n" + indent_str)
+        return "break"
 
 
-# ---------------- Tooltip ----------------
-class Tooltip(tk.Toplevel):
-    """Simple tooltip window."""
-
-    def __init__(self, widget, text):
-        super().__init__(widget)
-        self.withdraw()
-        self.overrideredirect(True)
-        self.wm_attributes("-topmost", True)
-
-        label = tk.Label(
-            self,
-            text=text,
-            background="#ffffe0",
-            relief="solid",
-            borderwidth=1,
-            font=("TkDefaultFont", 9),
-        )
-        label.pack(ipadx=2, ipady=1)
-
-    def show(self, x, y):
-        self.geometry(f"+{x+15}+{y+10}")
-        self.deiconify()
-
-    def hide(self):
-        self.withdraw()
-
-
-# ---------------- Line Numbers ----------------
+# ---------------------------
+# LineNumbers gutter (with fold marker)
+# ---------------------------
 class LineNumbers(tk.Canvas):
-    def __init__(self, master, text_widget, folds, **kwargs):
-        super().__init__(master, width=70, **kwargs)
+    def __init__(self, master, text_widget: CodeText, width=44, **kwargs):
+        super().__init__(master, width=width, **kwargs)
         self.text_widget = text_widget
-        self.folds = folds
-        self.hover_line = None
-        self.tooltip = None
+        self.width = width
+        self.bg = kwargs.get("bg", "#f7f7f7")
+        # Bindings to react to text changes/scroll
+        self.text_widget.bind("<<Change>>", self.redraw)
+        self.text_widget.bind("<Configure>", self.redraw)
+        self.text_widget.bind("<KeyRelease>", self.redraw)
+        self.text_widget.bind("<ButtonRelease-1>", self.redraw)
+        # capture clicks in gutter for folding toggles
+        self.bind("<Button-1>", self._on_click)
 
-        self.bind("<Motion>", self.on_motion)
-        self.bind("<Leave>", self.on_leave)
-        self.bind("<Button-1>", self.toggle_fold)
+        # Keep a mapping of fold markers -> start_line
+        self.fold_markers = {}  # (y_range) -> start_line
 
-    def redraw(self, event=None):
+    def redraw(self, *args):
+        """Redraw line numbers and fold markers."""
         self.delete("all")
-        i = self.text_widget.index("@0,0")
-        current_line = int(self.text_widget.index("insert").split(".")[0])
+        self.fold_markers.clear()
 
+        i = self.text_widget.index("@0,0")
+        font = ("Courier", 12)
         while True:
             dline = self.text_widget.dlineinfo(i)
             if dline is None:
                 break
             y = dline[1]
-            h = dline[3]
-            linenum = int(str(i).split(".")[0])
-
-            # Highlight active line
-            if linenum == current_line:
-                self.create_rectangle(0, y, 70, y + h, fill="#ddeeff", outline="")
-
-            # Line number
+            lineno = str(i).split(".")[0]
+            # line number text
             self.create_text(
-                20,
-                y,
-                anchor="n",
-                text=linenum,
-                fill="blue" if linenum == current_line else "gray25",
-                font=(
-                    "TkDefaultFont",
-                    9,
-                    "bold" if linenum == current_line else "normal",
-                ),
+                4, y, anchor="nw", text=lineno, font=font, tags=("lineno",)
             )
-
-            # Fold marker
-            if linenum in self.folds:
-                folded = self.folds[linenum]["folded"]
-                bg_color = "#f2dede" if folded else "#d9edf7"
-                if self.hover_line == linenum:
-                    bg_color = "#ffcccc" if folded else "#cce5ff"
-
-                # Background rectangle
-                self.create_rectangle(
-                    40, y + 2, 65, y + h - 2, fill=bg_color, outline="#666", width=1
-                )
-
-                # Triangle
-                cx, cy = 52, y + h / 2
+            # fold marker: small triangle if a foldable block starts here
+            if self.master.editor.is_foldable_line(int(lineno)):
+                # draw small triangle marker
                 size = 6
-                points = (
-                    [cx - size, cy - size, cx - size, cy + size, cx + size, cy]
-                    if folded
-                    else [cx - size, cy - size, cx + size, cy - size, cx, cy + size]
+                x0, x1 = self.width - 12, self.width - 4
+                y0 = y + 4
+                # check if folded
+                if self.master.editor.is_line_folded(int(lineno)):
+                    # right-pointing triangle (collapsed)
+                    pts = (x0, y0, x1, y0 + size / 2, x0, y0 + size)
+                else:
+                    # down-pointing triangle (expanded)
+                    pts = (x0, y0, x0 + size / 2, y0 + size, x0 + size, y0)
+                marker = self.create_polygon(
+                    pts, outline="black", fill="black", tags=("foldmarker",)
                 )
-                self.create_polygon(points, fill="darkred" if folded else "darkblue")
-
+                # store mapping from marker id -> line
+                self.fold_markers[marker] = int(lineno)
             i = self.text_widget.index(f"{i}+1line")
 
-    def on_motion(self, event):
-        line = int(self.text_widget.index(f"@0,{event.y}").split(".")[0])
-        if line in self.folds:
-            if self.hover_line != line:
-                self.hover_line = line
-                self.redraw()
-                folded = self.folds[line]["folded"]
-                msg = "Click to unfold block" if folded else "Click to fold block"
-                if self.tooltip:
-                    self.tooltip.destroy()
-                self.tooltip = Tooltip(self, msg)
-                self.tooltip.show(
-                    self.winfo_rootx() + event.x, self.winfo_rooty() + event.y
-                )
-        else:
-            if self.hover_line is not None:
-                self.hover_line = None
-                self.redraw()
-            if self.tooltip:
-                self.tooltip.hide()
-
-    def on_leave(self, event):
-        if self.hover_line is not None:
-            self.hover_line = None
-            self.redraw()
-        if self.tooltip:
-            self.tooltip.hide()
-
-    def toggle_fold(self, event):
-        line_clicked = int(self.text_widget.index(f"@0,{event.y}").split(".")[0])
-        self._toggle_fold_line(line_clicked)
-
-    def _toggle_fold_line(self, linenum):
-        if linenum in self.folds:
-            info = self.folds[linenum]
-            start, end = info["range"]
-            if info["folded"]:
-                self.text_widget.tag_remove("elide", f"{start+1}.0", f"{end}.0 lineend")
-                info["folded"] = False
-            else:
-                self.text_widget.tag_add("elide", f"{start+1}.0", f"{end}.0 lineend")
-                info["folded"] = True
+    def _on_click(self, event):
+        # find the nearest marker clicked
+        item = self.find_closest(event.x, event.y)
+        if not item:
+            return
+        item = item[0]
+        if "foldmarker" in self.gettags(item):
+            start_line = self.fold_markers.get(item, None)
+            if start_line is None:
+                return
+            # toggle fold
+            self.master.editor.toggle_fold(start_line)
+            # redraw after fold change
             self.redraw()
 
-    def fold_all(self):
-        for linenum, info in self.folds.items():
-            start, end = info["range"]
-            self.text_widget.tag_add("elide", f"{start+1}.0", f"{end}.0 lineend")
-            info["folded"] = True
-        self.redraw()
 
-    def unfold_all(self):
-        for linenum, info in self.folds.items():
-            start, end = info["range"]
-            self.text_widget.tag_remove("elide", f"{start+1}.0", f"{end}.0 lineend")
-            info["folded"] = False
-        self.redraw()
-
-
-# ---------------- Custom Text ----------------
-class CustomText(tk.Text):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.bind("<<Modified>>", self._on_change)
-        self.tag_configure("current_line", background="#eef6ff")
-        self.tag_configure("elide", elide=True)
-        # Syntax highlighting tags
-        self.tag_configure("keyword", foreground="blue")
-        self.tag_configure("string", foreground="lightblue")
-        self.tag_configure("comment", foreground="green")
-        self.tag_configure("number", foreground="purple")
-
-    def _on_change(self, event=None):
-        self.event_generate("<<Change>>", when="tail")
-        self.edit_modified(False)
-        self.highlight_syntax()
-
-    def highlight_syntax(self):
-        content = self.get("1.0", "end-1c")
-        self.tag_remove("keyword", "1.0", "end")
-        self.tag_remove("string", "1.0", "end")
-        self.tag_remove("comment", "1.0", "end")
-        self.tag_remove("number", "1.0", "end")
-
-        keyword_pattern = r"\b(def|for|if|else|elif|while|return|in|print|class|import|from|as|with|try|except|finally|break|continue|pass|and|or|not|is|lambda)\b"
-        string_pattern = r"(\".*?\"|'.*?')"
-        comment_pattern = r"#[^\n]*"
-        number_pattern = r"\b\d+(\.\d+)?\b"
-
-        for match in re.finditer(keyword_pattern, content):
-            start = f"1.0 + {match.start()} chars"
-            end = f"1.0 + {match.end()} chars"
-            self.tag_add("keyword", start, end)
-        for match in re.finditer(string_pattern, content):
-            start = f"1.0 + {match.start()} chars"
-            end = f"1.0 + {match.end()} chars"
-            self.tag_add("string", start, end)
-        for match in re.finditer(comment_pattern, content):
-            start = f"1.0 + {match.start()} chars"
-            end = f"1.0 + {match.end()} chars"
-            self.tag_add("comment", start, end)
-        for match in re.finditer(number_pattern, content):
-            start = f"1.0 + {match.start()} chars"
-            end = f"1.0 + {match.end()} chars"
-            self.tag_add("number", start, end)
-
-
-# ---------------- App ----------------
-# class App(tk.Tk):
-class PyEditor(ttk.Frame):
-    __version__ = "0.1.0"
+# ---------------------------
+# Main Editor Frame
+# ---------------------------
+class CodeEditor(tk.Frame):
+    __version__ = "0.1.1"
     __license__ = "MIT"
     _debug = True
 
-    def __init__(self, parent=None):
-        super().__init__()
-        # self.title("Tkinter Editor with Auto Folding")
-        # self.geometry("800x600")
+    def __init__(self, master=None, indent_width=4, **kwargs):
+        super().__init__(master, **kwargs)
+        self.pack(fill="both", expand=True)
+        # Left: gutter, middle: text, right: vscroll
+        self.gutter_frame = tk.Frame(self)
+        self.gutter_frame.pack(side="left", fill="y")
 
-        # frame = tk.Frame(self)
-        frame = parent
+        self.text_frame = tk.Frame(self)
+        self.text_frame.pack(side="left", fill="both", expand=True)
 
-        # frame.pack(fill=tk.BOTH, expand=True)
+        self._set_editor_colours()
 
-        # Scrollbars
-        vscroll = tk.Scrollbar(frame, orient="vertical")
-        vscroll.pack(side=tk.RIGHT, fill=tk.Y)
-        hscroll = tk.Scrollbar(frame, orient="horizontal")
-        hscroll.pack(side=tk.BOTTOM, fill=tk.X)
+        # Use CodeText
+        self.text = CodeText(
+            self.text_frame,
+            indent_width=indent_width,
+            wrap="none",
+            font=("Courier", 12),
+            undo=True,
+        )
 
-        # Text widget
-        self.text = CustomText(frame, wrap=tk.NONE, undo=True)
-        self.text.pack(side=tk.RIGHT, fill=tk.BOTH, expand=True)
+        # link to editor so gutter can access fold info
+        self.gutter_frame.editor = self
+        self.text_frame.editor = self
 
-        # Folding info and line numbers
+        # Scrollbar
+        self.vsb = ttk.Scrollbar(
+            self.text_frame, orient="vertical", command=self._on_vscroll
+        )
+        self.text.configure(yscrollcommand=self.vsb.set)
+
+        # Horizontal scrollbar
+        self.hsb = ttk.Scrollbar(
+            self.text_frame, orient="horizontal", command=self.text.xview
+        )
+        self.text.configure(xscrollcommand=self.hsb.set)
+
+        # Line numbers gutter
+        self.linenumbers = LineNumbers(self.gutter_frame, self.text, bg="#f7f7f7")
+        self.linenumbers.pack(side="left", fill="y")
+
+        self.vsb.pack(side="right", fill="y")
+        self.hsb.pack(side="bottom", fill="x")
+
+        self.text.pack(side="left", fill="both", expand=True)
+
+        # Folding state: mapping start_line -> dict with 'end' and 'tag'
         self.folds = {}
-        self.linenumbers = LineNumbers(frame, self.text, self.folds, bg="#f7f7f7")
-        self.linenumbers.pack(side=tk.LEFT, fill=tk.Y)
 
-        # Scroll sync
-        def on_scroll(*args):
-            vscroll.set(*args)
-            self.linenumbers.redraw()
+        # Syntax highlighting tags
+        self._setup_tags()
 
-        self.text.config(yscrollcommand=on_scroll)
-        vscroll.config(command=self._on_vscroll)
-        hscroll.config(command=self.text.xview)
+        # Event wiring for change notifications & highlight scheduling
+        self._install_change_event()
 
-        # Bind events
-        self.text.bind("<KeyRelease>", self._update_highlight)
-        self.text.bind("<ButtonRelease-1>", self._update_highlight)
-        self.text.bind("<<Change>>", self._update_highlight)
-        self.text.bind("<Configure>", self._update_highlight)
+        # Keybindings for folding
+        self.text.bind("<Control-f>", self._toggle_fold_current)
+        self.text.bind("<Alt-Left>", self._fold_current)
+        self.text.bind("<Alt-Right>", self._unfold_current)
 
-        # Keyboard shortcuts
-        # self.bind_all("<Control-slash>", self.toggle_fold_shortcut)
-        # self.bind_all("<Control-Shift-slash>", self.toggle_fold_all)
-        self.bind_all("<Control-KeyPress><Key-slash>", self.toggle_fold_shortcut)
-        self.bind_all("<Shift-Control-KeyPress><Key-slash>", self.toggle_fold_all)
+        # keep line numbers in sync with scroll
+        self.text.bind("<MouseWheel>", self._on_mousewheel)
+        self.text.bind("<Button-4>", self._on_mousewheel)  # linux
+        self.text.bind("<Button-5>", self._on_mousewheel)
 
-        # Sample Python code
-
-    #         sample_code = """# Sample Python code
-    # def hello_world():
-    #     print("Hello, world!")
-    #     for i in range(5):
-    #         print(i)  # print numbers
-    #     print("Done")
-
-    # x = 42
-    # if x > 10:
-    #     print("x is big")
-    # """
-    #         self.text.insert("1.0", sample_code)
-    #         self._update_highlight()  # initial highlight + folds
-
-    # ---------------- Folding ----------------
-    def _detect_folds(self):
-        old_folds = {k: v["folded"] for k, v in self.folds.items()}
-        lines = self.text.get("1.0", "end-1c").split("\n")
-        self.folds.clear()
-        stack = []
-        for idx, line in enumerate(lines, start=1):
-            stripped = line.strip()
-            indent = len(line) - len(line.lstrip(" "))
-            if stripped.endswith(":"):
-                stack.append((idx, indent))
-            else:
-                while stack and indent <= stack[-1][1]:
-                    start, _ = stack.pop()
-                    end = idx - 1
-                    if end > start:
-                        self.folds[start] = {
-                            "range": (start, end),
-                            "folded": old_folds.get(start, False),
-                        }
-        while stack:
-            start, _ = stack.pop()
-            end = len(lines)
-            if end > start:
-                self.folds[start] = {
-                    "range": (start, end),
-                    "folded": old_folds.get(start, False),
-                }
-
+    # ---------- view/scroll helpers ----------
     def _on_vscroll(self, *args):
         self.text.yview(*args)
         self.linenumbers.redraw()
 
-    def _update_highlight(self, event=None):
-        self._detect_folds()  # recompute folds dynamically
-        self.text.tag_remove("current_line", "1.0", "end")
-        cursor_index = self.text.index("insert")
-        line_start = f"{cursor_index.split('.')[0]}.0"
-        line_end = f"{cursor_index.split('.')[0]}.end+1c"
-        self.text.tag_add("current_line", line_start, line_end)
-        self.linenumbers.redraw()
+    def _on_mousewheel(self, event):
+        # allow normal scroll and then update gutter
+        self.text.after(1, self.linenumbers.redraw)
 
-    def toggle_fold_shortcut(self, event=None):
-        if self._debug:
-            print("into toggle_fold_shortcut")
-        line = int(self.text.index("insert").split(".")[0])
-        if line in self.folds:
-            self.linenumbers._toggle_fold_line(line)
+    # ---------- change event ----------
+    def _install_change_event(self):
+        # Whenever text is modified by user or program, generate <<Change>>
+        def _on_modify(event=None):
+            # generate virtual event for gutter and other listeners
+            try:
+                self.text.event_generate("<<Change>>", when="tail")
+            except tk.TclError:
+                pass
+            # schedule syntax highlight
+            self._schedule_highlight()
+            # schedule fold updates (if necessary)
+            self.text.after(100, self._refresh_folds_on_edit)
 
-    def toggle_fold_all(self, event=None):
-        if self._debug:
-            print("into toggle_fold_all")
-        if any(info["folded"] for info in self.folds.values()):
-            self.linenumbers.unfold_all()
+        self.text.bind("<<Modified>>", _on_modify)
+
+        # Ensure modified flag is reset after handling
+        def _reset_modified(event=None):
+            try:
+                self.text.tk.call(self.text._w, "edit", "modified", 0)
+            except tk.TclError:
+                pass
+
+        self.text.bind("<<Change>>", _reset_modified)
+
+    # ---------- folding logic ----------
+    def is_foldable_line(self, line: int) -> bool:
+        """
+        Decide whether a line starts a foldable block.
+        For Python: line that ends with ':' and the next line is more indented.
+        """
+        try:
+            s = self.text.get(f"{line}.0", f"{line}.end")
+        except tk.TclError:
+            return False
+        if not s.rstrip().endswith(":"):
+            return False
+        # check next line indentation
+        try:
+            next_line_text = self.text.get(f"{line+1}.0", f"{line+1}.end")
+        except tk.TclError:
+            return False
+        return self.text._get_line_indent(next_line_text) > self.text._get_line_indent(
+            s
+        )
+
+    def is_line_folded(self, line: int) -> bool:
+        """Return True if a fold starting at `line` exists and is currently elided."""
+        fold = self.folds.get(line)
+        if not fold:
+            return False
+        # check whether elide tag exists (any text with the tag)
+        ranges = self.text.tag_ranges(fold["tag"])
+        return bool(ranges)
+
+    def _find_block_range(self, start_line: int):
+        """
+        Given a line that begins a block (like ends with ':'), return (start_index, end_index, end_line)
+        where end_index is the index of the last character in the block to be hidden (inclusive).
+        Basic approach: a block includes all subsequent lines with indentation > start indent.
+        """
+        start_line_text = self.text.get(f"{start_line}.0", f"{start_line}.end")
+        start_indent = self.text._get_line_indent(start_line_text)
+
+        # start scanning from next line
+        cur = start_line + 1
+        last_in_block = start_line
+        total_lines = int(self.text.index("end-1c").split(".")[0])
+        while cur <= total_lines:
+            line_txt = self.text.get(f"{cur}.0", f"{cur}.end")
+            # blank lines: treat their indent as large negative so they can be part of block if they are empty
+            if line_txt.strip() == "":
+                # keep them in block only if next non-empty line remains in block
+                last_in_block = cur
+                cur += 1
+                continue
+            indent = self.text._get_line_indent(line_txt)
+            if indent > start_indent:
+                last_in_block = cur
+                cur += 1
+            else:
+                break
+        if last_in_block == start_line:
+            return None  # no block
+        start_index = f"{start_line+1}.0"  # hide from the next line start
+        end_index = f"{last_in_block}.end"
+        return start_index, end_index, last_in_block
+
+    def toggle_fold(self, start_line: int):
+        if start_line in self.folds:
+            self.unfold(start_line)
         else:
-            self.linenumbers.fold_all()
+            self.fold(start_line)
 
-    def load_file(self, filename=None):
+    def fold(self, start_line: int):
+        rng = self._find_block_range(start_line)
+        if not rng:
+            return False
+        start_index, end_index, end_line = rng
+        tagname = f"fold_{start_line}"
+        # create tag with elide true to hide the text
+        self.text.tag_add(tagname, start_index, end_index)
+        self.text.tag_config(tagname, elide=True)
+        # store fold metadata
+        self.folds[start_line] = {"start": start_line, "end": end_line, "tag": tagname}
+        # redraw gutter
+        self.linenumbers.redraw()
+        return True
 
-        data = self.read_file(filename)
-        self.text.insert(1.0, data)
-        self._update_highlight()
+    def unfold(self, start_line: int):
+        fold = self.folds.get(start_line)
+        if not fold:
+            return False
+        tagname = fold["tag"]
+        self.text.tag_delete(tagname)
+        self.folds.pop(start_line, None)
+        self.linenumbers.redraw()
+        return True
+
+    # ---------- keyboard actions ----------
+    def _toggle_fold_current(self, event=None):
+        idx = self.text.index("insert")
+        cur_line = int(idx.split(".")[0])
+        # If current line not foldable, search up to find nearest foldable ancestor
+        if not self.is_foldable_line(cur_line):
+            # search up
+            for L in range(cur_line - 1, 0, -1):
+                if self.is_foldable_line(L):
+                    cur_line = L
+                    break
+        self.toggle_fold(cur_line)
+        return "break"
+
+    def _fold_current(self, event=None):
+        idx = self.text.index("insert")
+        cur_line = int(idx.split(".")[0])
+        # find nearest foldable ancestor up the tree
+        for L in range(cur_line, 0, -1):
+            if self.is_foldable_line(L):
+                self.fold(L)
+                break
+        return "break"
+
+    def _unfold_current(self, event=None):
+        idx = self.text.index("insert")
+        cur_line = int(idx.split(".")[0])
+        # try current line and parents
+        for L in range(cur_line, 0, -1):
+            if L in self.folds:
+                self.unfold(L)
+                break
+        return "break"
+
+    def _refresh_folds_on_edit(self):
+        """
+        Called after edits to ensure existing folds are still valid.
+        If structure changed so a fold no longer valid, unfold it.
+        Also if new foldable lines appeared, leave them closed (do not auto-fold).
+        """
+        to_unfold = []
+        for start, meta in list(self.folds.items()):
+            # Ensure start line still exists and still begins a block
+            total_lines = int(self.text.index("end-1c").split(".")[0])
+            if start > total_lines:
+                to_unfold.append(start)
+                continue
+            if not self.is_foldable_line(start):
+                to_unfold.append(start)
+        for s in to_unfold:
+            self.unfold(s)
+
+    def _set_editor_colours(self):
+        # global keyword_fg_color, string_color, comment_color, current_line_bg_color
+
+        self.keyword_fg_color = "#0000ff"
+        self.string_fg_color = "#a31515"
+        self.comment_fg_color = "#008000"
+        self.currentLine_bg_color = "#f0f8ff"
+
+    # ---------- syntax highlighting ----------
+    def _setup_tags(self):
+        # create and keep font objects so they are not garbage-collected
+        base_font = tkfont.Font(font=self.text["font"])
+        base_font.configure(size=12)
+        self._base_font = base_font
+        comment_font = base_font.copy()
+        comment_font.configure(slant="italic", size=12)
+        self._comment_font = comment_font
+
+        # minimal styling — users can customize these tags
+        #
+        # self.keyword_fg_color = "#0000ff"
+        # self.string_fg_color = "#a31515"
+        # self.comment_fg_color = "#008000"
+        # self.currentLine_bg_color = "#f0f8ff"
+
+        self.text.tag_configure(
+            "keyword", foreground=self.keyword_fg_color, font=self._base_font
+        )
+        self.text.tag_configure(
+            "string", foreground=self.string_fg_color, font=self._base_font
+        )
+        # use the italic font for comments
+        self.text.tag_configure(
+            "comment", foreground=self.comment_fg_color, font=self._comment_font
+        )
+        # optional: background for current line
+        self.text.tag_configure("current_line_bg", background=self.currentLine_bg_color)
+
+        # self.text.tag_configure("keyword", foreground="#0000ff", font=self._base_font)
+        # self.text.tag_configure("string", foreground="#a31515", font=self._base_font)
+        # # use the italic font for comments
+        # self.text.tag_configure(
+        #     "comment", foreground="#008000", font=self._comment_font
+        # )
+        # # optional: background for current line
+        # self.text.tag_configure("current_line_bg", background="#f0f8ff")
+
+        # precompile regexes for speed
+        kwlist = keyword.kwlist
+        self._kw_regex = re.compile(r"\b(" + r"|".join(map(re.escape, kwlist)) + r")\b")
+        self._string_regex = re.compile(r"(\".*?\"|\'.*?\')", re.S)
+        self._comment_regex = re.compile(r"#[^\n]*")
+
+        # schedule initial highlight
+        self._schedule_highlight(initial=True)
+
+    def _schedule_highlight(self, initial=False):
+        """Debounce highlight calls."""
+        if self.text._highlight_after_id:
+            try:
+                self.text.after_cancel(self.text._highlight_after_id)
+            except Exception:
+                pass
+        delay = 50 if not initial else 0
+        self.text._highlight_after_id = self.text.after(delay, self._do_highlight)
+
+    def _do_highlight(self):
+        txt = self.text.get("1.0", "end-1c")
+        # clear tags
+        for tag in ("keyword", "string", "comment"):
+            self.text.tag_remove(tag, "1.0", "end")
+
+        # comments first (so strings inside commented text not highlighted)
+        for m in self._comment_regex.finditer(txt):
+            start = "1.0 + %dc" % m.start()
+            end = "1.0 + %dc" % m.end()
+            self.text.tag_add("comment", start, end)
+
+        # strings
+        for m in self._string_regex.finditer(txt):
+            # skip if inside comment
+            if self._comment_regex.search(txt[m.start() : m.end()]):
+                continue
+            start = "1.0 + %dc" % m.start()
+            end = "1.0 + %dc" % m.end()
+            self.text.tag_add("string", start, end)
+
+        # keywords (skip those within strings/comments)
+        for m in self._kw_regex.finditer(txt):
+            s_idx = m.start()
+            e_idx = m.end()
+            # check it's not inside comment or string by checking tags at that index
+            pos = "1.0 + %dc" % s_idx
+            tags = self.text.tag_names(pos)
+            if "string" in tags or "comment" in tags:
+                continue
+            start = "1.0 + %dc" % s_idx
+            end = "1.0 + %dc" % e_idx
+            self.text.tag_add("keyword", start, end)
+
+        # reset scheduled id
+        self.text._highlight_after_id = None
+
+    # ---------- load/show helpers ----------
+    def load_file(self, path):
+        """Load a file into editor, clear folds & recalc."""
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = f.read()
+        except Exception as e:
+            print("Error loading file:", e)
+            return False
+        self.text.delete("1.0", "end")
+        self.text.insert("1.0", data)
+        # reset folds and tags
+        for k in list(self.folds.keys()):
+            self.unfold(k)
+        self.folds.clear()
+        # schedule gutter redraw and highlighting
+        self.linenumbers.redraw()
+        self._schedule_highlight(initial=True)
+        return True
 
     def clear_editor(self):
         self.text.delete(1.0, END)
@@ -395,3 +575,70 @@ class PyEditor(ttk.Frame):
 
     def get_licence(self):
         return self.__license__
+
+
+# ---------------------------
+# Demo app
+# ---------------------------
+# def demo():
+#     root = tk.Tk()
+#     root.title("Tkinter Code Editor — Auto-indent, Folding, Highlighting")
+#     root.geometry("900x600")
+
+#     editor = CodeEditor(root, indent_width=4)
+#     # expose as attribute for easier access in examples
+#     root.editor = editor
+
+#     # sample code to show functionality
+#     sample = """\
+# class Example:
+#     def __init__(self, x):
+#         self.x = x
+
+#     def method(self):
+#         if self.x > 0:
+#             for i in range(self.x):
+#                 print(i)
+#         else:
+#             print("no items")
+
+# def top_level():
+#     print("done")
+# """
+#     editor.text.insert("1.0", sample)
+#     editor.linenumbers.redraw()
+#     editor._schedule_highlight(initial=True)
+
+#     # simple menu to load files and change indent width
+#     menubar = tk.Menu(root)
+#     filem = tk.Menu(menubar, tearoff=False)
+#     def _open():
+#         from tkinter.filedialog import askopenfilename
+#         p = askopenfilename()
+#         if p:
+#             editor.load_file(p)
+#     filem.add_command(label="Open...", command=_open)
+#     filem.add_command(label="Quit", command=root.destroy)
+#     menubar.add_cascade(label="File", menu=filem)
+
+#     settings = tk.Menu(menubar, tearoff=False)
+#     def set_indent():
+#         # simple popup to set indent width
+#         w = tk.Toplevel(root)
+#         w.title("Set indent width")
+#         tk.Label(w, text="Indent width (spaces):").pack(side="left", padx=4, pady=6)
+#         var = tk.IntVar(value=editor.text.indent_width)
+#         ent = tk.Entry(w, textvariable=var, width=6)
+#         ent.pack(side="left", padx=4)
+#         def ok():
+#             editor.text.set_indent_width(var.get())
+#             w.destroy()
+#         tk.Button(w, text="OK", command=ok).pack(side="left", padx=6)
+#     settings.add_command(label="Indent width...", command=set_indent)
+#     menubar.add_cascade(label="Settings", menu=settings)
+
+#     root.config(menu=menubar)
+#     root.mainloop()
+
+# if __name__ == "__main__":
+#    demo()
