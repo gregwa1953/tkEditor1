@@ -8,6 +8,8 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Author: Greg Walters
 # Date Created: 2025-10-04 03:20:49
+# Version 0.1.2
+# Last Updated: 2025-10-05 10:23:29
 # ---------------------------------------------------------------
 # Copyright © 2025 by G.D. Walters and Designated Geek Software
 # ===============================================================
@@ -25,6 +27,7 @@
 #    Oct 05, 2025 06:17:41 AM CDT  platform: Linux
 #    Oct 05, 2025 06:19:51 AM CDT  platform: Linux
 #    Oct 05, 2025 07:44:25 AM CDT  platform: Linux
+#    Oct 05, 2025 10:48:01 AM CDT  platform: Linux
 
 import sys
 import os
@@ -53,8 +56,7 @@ import tkEditorDemo1
 _debug = True  # False to eliminate debug printing from callback functions.
 location = tkEditorDemo1._location
 programName = "tkEditor Demo #1"
-version = "0.1.0"
-
+version = "0.1.2"
 
 def main(*args):
     """Main entry point for the application."""
@@ -67,7 +69,6 @@ def main(*args):
     _w1 = tkEditorDemo1.Toplevel1(_top1)
     startup()
     root.mainloop()
-
 
 def startup():
     # "Hide" About and Prefs frames
@@ -147,34 +148,50 @@ def startup():
     _w1.stAbout.insert(1.0, about_info)
     # ed1.s
 
-
 def setupPrefFrame():
     # Clear all the TEdit widgets on the Prefs Frame...
     _w1.kwdColorData.set("")
     _w1.stringColorData.set("")
     _w1.commentColourData.set("")
     _w1.LineBgColorData.set("")
+    _w1.EditorBgColorData.set("")
     _w1.IndentData.set(4)
+    global def_keyword_color, def_string_color, def_comment_color, def_current_line_bg_color, def_editor_bg_color
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color
     bgcolor = "white"
+    def_editor_bg_color = "white"
     def_keyword_color = "#0000ff"
     def_string_color = "#a31515"
     def_comment_color = "#008000"
     def_current_line_bg_color = "#f0f8ff"
+    def_current_Editor_bg_color = "white"
     #
-    _w1.TLabel8.configure(background=bgcolor, foreground=def_keyword_color)
-    _w1.TLabel9.configure(background=bgcolor, foreground=def_string_color)
-    _w1.TLabel10.configure(background=bgcolor, foreground=def_comment_color)
-    _w1.TLabel11.configure(background=def_current_line_bg_color, foreground="black")
+    _w1.tlblKeywordColor.configure(background=bgcolor, foreground=def_keyword_color)
+    _w1.tlblStringColor.configure(background=bgcolor, foreground=def_string_color)
+    _w1.TLblCommentColour.configure(background=bgcolor, foreground=def_comment_color)
+    _w1.TlblClineBackground.configure(
+        background=def_current_line_bg_color, foreground="black"
+    )
+    _w1.TlblEditorBgColor.configure(
+        background=def_editor_bg_color, foreground=def_string_color
+    )
     _w1.KwdLabelTest.set("Test Text")
     _w1.stringLabelTest.set("Test Text")
     _w1.CommentLabelTest.set("Test Text")
     _w1.LineColorLabelTest.set("Test Text")
+    _w1.EditorLabelColorTest.set("Test Text")
 
     _w1.kwdColorData.set(def_keyword_color)
     _w1.stringColorData.set(def_string_color)
     _w1.commentColourData.set(def_comment_color)
     _w1.LineBgColorData.set(def_current_line_bg_color)
+    _w1.EditorBgColorData.set(def_editor_bg_color)
 
+    cur_keyword_color = def_keyword_color
+    cur_string_color = def_string_color
+    cur_comment_color = def_comment_color
+    cur_current_line_bg_color = def_current_line_bg_color
+    cur_editor_bg_color = def_current_Editor_bg_color
 
 def on_NotebookTabChange(*args):
     # Callback function for TNotebook
@@ -182,7 +199,6 @@ def on_NotebookTabChange(*args):
     currenttab = _w1.TNotebook1.index("current")
     if _debug:
         print(f"{currenttab=}")
-
 
 def on_btnClear(*args):
     if _debug:
@@ -192,7 +208,6 @@ def on_btnClear(*args):
         sys.stdout.flush()
     ed1.clear_editor()
 
-
 def on_btnExit(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnExit")
@@ -200,7 +215,6 @@ def on_btnExit(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
     sys.exit()
-
 
 def on_btnFileNew(*args):
     if _debug:
@@ -212,7 +226,6 @@ def on_btnFileNew(*args):
     current_filename = ""
     _w1.TNotebook1.tab(currenttab, text="Unknown")
     on_btnClear()
-
 
 def on_btnFileOpen(*args):
     if _debug:
@@ -260,7 +273,6 @@ def on_btnFileOpen(*args):
     _top1.title(f"{programName} - {version} - {basefile}")
     _w1.TNotebook1.tab(currenttab, text=basefile)
 
-
 def on_btnFileSave(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnFileSave")
@@ -305,11 +317,9 @@ def on_btnFileSave(*args):
     _top1.title(f"{programName} - {version} - {basefile} - Saved")
     _w1.TNotebook1.tab(0, text=basefile)
 
-
 def write_file(filename, strng):
     with open(filename, "w") as f:
         f.write(strng)
-
 
 def read_file(filename):
     # ======================================================
@@ -321,7 +331,6 @@ def read_file(filename):
         lines = f.read()
     return lines
 
-
 def on_bthAbout(*args):
     if _debug:
         print("tkEditorDemo1_support.on_bthAbout")
@@ -329,7 +338,6 @@ def on_bthAbout(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
     _w1.frameAbout.lift()
-
 
 def on_btnHelp(*args):
     if _debug:
@@ -343,7 +351,6 @@ def on_btnHelp(*args):
     ico = messagebox.INFO
     messagebox.showinfo(titl, msg, parent=parent, icon=ico)
 
-
 def on_btnAboutDismiss(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnAboutDismiss")
@@ -351,7 +358,6 @@ def on_btnAboutDismiss(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
     _w1.frameAbout.lower()
-
 
 def on_btnFileSaveAs(*args):
     if _debug:
@@ -397,14 +403,21 @@ def on_btnFileSaveAs(*args):
         _top1.title(f"{programName} - {version} - {basefile} - Saved")
         _w1.TNotebook1.tab(0, text=basefile)
 
-
 def on_btnCommentColour(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnCommentColour")
         for arg in args:
             print("    another arg:", arg)
         sys.stdout.flush()
+    global def_keyword_color, def_string_color, def_comment_color, def_current_line_bg_color, def_editor_bg_color
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color
+    choice = colorchooser.askcolor(def_comment_color)
+    print(f"{choice=}")
 
+    _w1.commentColourData.set(choice[1])
+    _w1.TLblCommentColour.configure(foreground=choice[1])
+    cur_comment_color = choice[1]
+    # Write to globals and config.toml
 
 def on_btnCurrentLineColour(*args):
     if _debug:
@@ -412,7 +425,14 @@ def on_btnCurrentLineColour(*args):
         for arg in args:
             print("    another arg:", arg)
         sys.stdout.flush()
-
+    global def_keyword_color, def_string_color, def_comment_color, def_current_line_bg_color, def_editor_bg_color
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color
+    choice = colorchooser.askcolor(def_current_line_bg_color)
+    print(f"{choice=}")
+    _w1.LineBgColorData.set(choice[1])
+    _w1.TlblClineBackground.configure(background=choice[1])
+    cur_current_line_bg_color = choice[1]
+    # Write to globals and config.toml
 
 def on_btnKeywordColour(*args):
     if _debug:
@@ -421,6 +441,15 @@ def on_btnKeywordColour(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
 
+    global def_keyword_color, def_string_color, def_comment_color, def_current_line_bg_color, def_editor_bg_color
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color
+    choice = colorchooser.askcolor(def_keyword_color)
+
+    print(f"{choice[1]=}")
+    _w1.kwdColorData.set(choice[1])
+    _w1.tlblKeywordColor.configure(foreground=choice[1])
+    cur_keyword_color = choice[1]
+    # Write to globals and config.toml
 
 def on_btnPrefs(*args):
     if _debug:
@@ -430,14 +459,20 @@ def on_btnPrefs(*args):
         sys.stdout.flush()
     _w1.framePrefs.lift()
 
-
 def on_btnStringColour(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnStringColour")
         for arg in args:
             print("    another arg:", arg)
         sys.stdout.flush()
-
+    global def_keyword_color, def_string_color, def_comment_color, def_current_line_bg_color, def_editor_bg_color
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color
+    choice = colorchooser.askcolor(def_string_color)
+    print(f"{choice=}")
+    _w1.stringColorData.set(choice[1])
+    _w1.tlblStringColor.configure(foreground=choice[1])
+    cur_string_color = choice[1]
+    # Write to globals and config.toml
 
 def on_btnPrefDismiss(*args):
     if _debug:
@@ -447,14 +482,12 @@ def on_btnPrefDismiss(*args):
         sys.stdout.flush()
     _w1.framePrefs.lower()
 
-
 def on_btnPrefsIgnoreChanges(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnPrefsIgnoreChanges")
         for arg in args:
             print("    another arg:", arg)
         sys.stdout.flush()
-
 
 def on_btnPrefsSaveChanges(*args):
     if _debug:
@@ -463,6 +496,26 @@ def on_btnPrefsSaveChanges(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
 
+def on_btnEditorBGColour(*args):
+    if _debug:
+        print("tkEditorDemo1_support.on_btnEditorBGColour")
+        for arg in args:
+            print("    another arg:", arg)
+        sys.stdout.flush()
+
+    global def_keyword_color, def_string_color, def_comment_color, def_current_line_bg_color, def_editor_bg_color
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color
+    choice = colorchooser.askcolor(def_editor_bg_color)
+
+    print(f"{choice[1]=}")
+    _w1.EditorBgColorData.set(choice[1])
+    _w1.TlblEditorBgColor.configure(background=choice[1], foreground="black")
+    cur_editor_bg_color = choice[1]
+    # Write to globals and config.toml
 
 if __name__ == "__main__":
     tkEditorDemo1.start_up()
+
+
+
+
