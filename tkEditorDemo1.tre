@@ -1,0 +1,60 @@
+PAGE
+    Toplevel: Toplevel 0
+        TFrame: frameStatus  locked
+            TLabel: lblStatusInfo1  locked
+            TLabel: lblStatusInfo2  locked
+            TLabel: lblStatusTime  locked
+        TFrame: frameMain  locked
+            TNotebook: TNotebook1  
+                Tab: TNotebook1_t1  
+                    TFrame: frameEd1  locked
+                Tab: TNotebook1_t2  
+                    TFrame: frameEd2  
+        TFrame: frameButtons  locked
+            TButton: btnExit  locked command: on_btnExit bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {Exit}}
+            TButton: btnHelp  locked command: on_btnHelp bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {Help}}
+            TButton: btnAbout  locked command: on_bthAbout bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {About the program}}
+            TButton: btnFileSave  locked command: on_btnFileSave bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {Save the current file}}
+            TButton: btnFileOpen  locked command: on_btnFileOpen bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {Open File}}
+            TButton: btnClear  locked command: on_btnClear bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {Clear the Editor}}
+            TButton: btnFileNew  locked command: on_btnFileNew bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {Create a NEW file}}
+            TButton: btnFileSaveAs  locked command: on_btnFileSaveAs bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {Save Current File As....}}
+            TButton: btnPrefs  locked command: on_btnPrefs bind: <<SetBalloon>> to {set ::vTcl::balloon::%W {Preferences}}
+        TFrame: frameAbout  locked
+            TLabel: TLabel1  
+            TButton: btmAboutDismiss   command: on_btnAboutDismiss
+            TLabel: TLabel3  
+            TLabel: TLabel2  
+            TFrame: TFrame2  locked
+                Scrolledtext: stAbout  locked
+                    TScrollbar
+                    Text
+        TFrame: framePrefs  locked
+            TButton: btnPrefsDismiss   command: on_btnPrefDismiss
+            TButton: btnPrefsSaveChanges   command: on_btnPrefsSaveChanges
+            TButton: btnPrefsIgnoreChanges   command: on_btnPrefsIgnoreChanges
+            TLabelframe: TLabelframe1  locked
+                TLabel: TLabel6  locked
+                TButton: btnKeywordColour   command: on_btnKeywordColour
+                TButton: btnStringColour   command: on_btnStringColour
+                TLabel: TLabel7  locked
+                TLabel: TLabel13  
+                TButton: btnCommentColour   command: on_btnCommentColour
+                TButton: btnCurrentLineColour   command: on_btnCurrentLineColour
+                TButton: btnEditorBgColour   command: on_btnEditorBGColour
+                TLabel: TLabel5  locked
+                TLabel: TLabel4  locked
+                TEntry: TEntry1  
+                TEntry: TEntry2  
+                TLabel: tlblStringColor  
+                TLabel: tlblKeywordColor  
+                TEntry: TEntry3  
+                TLabel: TLblCommentColour  
+                TEntry: TEntry4  
+                TLabel: TlblClineBackground  
+                TEntry: TEntry6  
+                TLabel: TlblEditorBgColor  
+            TLabelframe: TLabelframe2  locked
+                TLabel: TLabel12  
+                TEntry: TEntry5  
+

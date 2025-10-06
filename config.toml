@@ -1,0 +1,8 @@
+[editor]
+indent = 4
+editor_bg_color = "#f5deb3"
+keyword_color = "#0000ff"
+string_color = "#a31515"
+comment_color = "#008000"
+current_line_bg_color = "#f0f8ff"
+current_Editor_bg_color = "rose"

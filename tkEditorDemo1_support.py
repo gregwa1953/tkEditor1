@@ -8,7 +8,7 @@
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Author: Greg Walters
 # Date Created: 2025-10-04 03:20:49
-# Version 0.1.2
+# Version 0.1.3
 # Last Updated: 2025-10-05 10:23:29
 # ---------------------------------------------------------------
 # Copyright © 2025 by G.D. Walters and Designated Geek Software
@@ -28,13 +28,16 @@
 #    Oct 05, 2025 06:19:51 AM CDT  platform: Linux
 #    Oct 05, 2025 07:44:25 AM CDT  platform: Linux
 #    Oct 05, 2025 10:48:01 AM CDT  platform: Linux
+#    Oct 05, 2025 03:36:00 PM CDT  platform: Linux
 
 import sys
 import os
+import datetime
+import toml
+
+# Import the tkEditor Metawidget
 
 import tkEditor1
-
-# import pyScrolledText16
 
 import tkinter as tk
 import tkinter.ttk as ttk
@@ -56,7 +59,8 @@ import tkEditorDemo1
 _debug = True  # False to eliminate debug printing from callback functions.
 location = tkEditorDemo1._location
 programName = "tkEditor Demo #1"
-version = "0.1.2"
+version = "0.1.3"
+
 
 def main(*args):
     """Main entry point for the application."""
@@ -70,11 +74,15 @@ def main(*args):
     startup()
     root.mainloop()
 
+
 def startup():
+    global config
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color, colorSet
     # "Hide" About and Prefs frames
     _w1.frameAbout.lower()
     _w1.framePrefs.lower()
-
+    read_config()
+    setup_colorSet()
     # Set a global instance of the editor.
     global ed1, ed2
 
@@ -84,13 +92,17 @@ def startup():
     # Set the title of the Toplevel
     _top1.title(f"{programName} - {version}")
 
+    # Apply the colourSet to the editors
+    ed1._update_editor_colours(colorSet)
+    ed2._update_editor_colours(colorSet)
     # Get the version of the editor code and the licence
     libVer = ed1.get_version()
     libLic = ed1.get_licence()
     if _debug:
         print(f"{libVer=}")
         print(f"{libLic=}")
-
+    _w1.StatusInfo1.set(f"tkEditor1 Version {libVer}")
+    _w1.StatusInfo2.set(f"License: {libLic}")
     # Housekeeping on the TNotebook
     global current_filename
     current_filename = ""
@@ -110,6 +122,38 @@ def startup():
 
     setupPrefFrame()
 
+    setupAboutFrame()
+
+    # Status bar Time code...
+    global timer_id
+    timer_id = root.after(0, on_time_update)
+
+
+# ==============================
+#    End of function startup
+# ==============================
+
+
+def setup_colorSet():
+    global config
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color, colorSet, indent
+    cur_keyword_color = config["editor"]["keyword_color"]
+    cur_string_color = config["editor"]["string_color"]
+    cur_comment_color = config["editor"]["comment_color"]
+    cur_current_line_bg_color = config["editor"]["current_line_bg_color"]
+    cur_editor_bg_color = config["editor"]["editor_bg_color"]
+    indent = config["editor"]["indent"]
+    colorSet = {}
+    colorSet = {
+        "keywordColor": cur_keyword_color,
+        "stringColor": cur_string_color,
+        "commentColor": cur_comment_color,
+        "lineBgColor": cur_current_line_bg_color,
+        "editorBgColor": cur_editor_bg_color,
+    }
+
+
+def setupAboutFrame():
     # Load up the ScrolledTextbox info in the About Frame
     about_info = """ Welcome to the tkEditor demo program.
     
@@ -130,7 +174,7 @@ def startup():
       One other limitation is that there is not support to convert Tabs to spaces and that changing the indent amount only works on new files.  Loading an existing file into the editor will NOT apply ANY different indentations.  This is to preserve the format of the existing file.
       
 
-    Still to do ....
+    Still to do 
     ----------------------
 
     A few things are currently on my mental list of things to do.  However, I will try to enumerate them here.
@@ -140,13 +184,26 @@ def startup():
         * EVENTUALLY support formatting tags (bold, italic, etc.) for the tk.ScrolledText widget in the About file.  (This file.)
         * Clean up the code in both the tkEditor and demo files.
         * Add ability to have more editors in tabs of the TNotebook.
+        * Add AT LEAST popup menus for tkEditor supporting Copy, Cut, Paste
+        *
+        *
         *
 
     For more information, please see the help document (currently unavaiable since it's creation is in process).
     """
 
     _w1.stAbout.insert(1.0, about_info)
-    # ed1.s
+
+
+def on_time_update():
+    # ======================================================
+    # Callback function for the Time display
+    # ======================================================
+    global timer_id
+    nowstring = f"{datetime.datetime.now():%X}"
+    _w1.StatusTime.set(nowstring)
+    timer_id = root.after(500, on_time_update)
+
 
 def setupPrefFrame():
     # Clear all the TEdit widgets on the Prefs Frame...
@@ -166,14 +223,14 @@ def setupPrefFrame():
     def_current_line_bg_color = "#f0f8ff"
     def_current_Editor_bg_color = "white"
     #
-    _w1.tlblKeywordColor.configure(background=bgcolor, foreground=def_keyword_color)
-    _w1.tlblStringColor.configure(background=bgcolor, foreground=def_string_color)
-    _w1.TLblCommentColour.configure(background=bgcolor, foreground=def_comment_color)
+    _w1.tlblKeywordColor.configure(background=bgcolor, foreground=cur_keyword_color)
+    _w1.tlblStringColor.configure(background=bgcolor, foreground=cur_string_color)
+    _w1.TLblCommentColour.configure(background=bgcolor, foreground=cur_comment_color)
     _w1.TlblClineBackground.configure(
-        background=def_current_line_bg_color, foreground="black"
+        background=cur_current_line_bg_color, foreground="black"
     )
     _w1.TlblEditorBgColor.configure(
-        background=def_editor_bg_color, foreground=def_string_color
+        background=cur_editor_bg_color, foreground=def_string_color
     )
     _w1.KwdLabelTest.set("Test Text")
     _w1.stringLabelTest.set("Test Text")
@@ -181,17 +238,26 @@ def setupPrefFrame():
     _w1.LineColorLabelTest.set("Test Text")
     _w1.EditorLabelColorTest.set("Test Text")
 
-    _w1.kwdColorData.set(def_keyword_color)
-    _w1.stringColorData.set(def_string_color)
-    _w1.commentColourData.set(def_comment_color)
-    _w1.LineBgColorData.set(def_current_line_bg_color)
-    _w1.EditorBgColorData.set(def_editor_bg_color)
+    _w1.kwdColorData.set(cur_keyword_color)
+    _w1.stringColorData.set(cur_string_color)
+    _w1.commentColourData.set(cur_comment_color)
+    _w1.LineBgColorData.set(cur_current_line_bg_color)
+    _w1.EditorBgColorData.set(cur_editor_bg_color)
+    colorSet = {}
+    colorSet = {
+        "keywordColor": cur_keyword_color,
+        "stringColor": cur_string_color,
+        "commentColor": cur_comment_color,
+        "lineBgColor": cur_current_line_bg_color,
+        "editorBgColor": cur_editor_bg_color,
+    }
+    # cur_keyword_color = def_keyword_color
+    # cur_string_color = def_string_color
+    # cur_comment_color = def_comment_color
+    # cur_current_line_bg_color = def_current_line_bg_color
+    # cur_editor_bg_color = def_current_Editor_bg_color
+    ed1._update_editor_colours(colorSet)
 
-    cur_keyword_color = def_keyword_color
-    cur_string_color = def_string_color
-    cur_comment_color = def_comment_color
-    cur_current_line_bg_color = def_current_line_bg_color
-    cur_editor_bg_color = def_current_Editor_bg_color
 
 def on_NotebookTabChange(*args):
     # Callback function for TNotebook
@@ -200,13 +266,19 @@ def on_NotebookTabChange(*args):
     if _debug:
         print(f"{currenttab=}")
 
+
 def on_btnClear(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnClear")
         for arg in args:
             print("    another arg:", arg)
         sys.stdout.flush()
-    ed1.clear_editor()
+    if currenttab == 0:
+        editorToUse = ed1
+    elif currenttab == 1:
+        editorToUse = ed2
+    editorToUse.clear_editor()
+
 
 def on_btnExit(*args):
     if _debug:
@@ -215,6 +287,7 @@ def on_btnExit(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
     sys.exit()
+
 
 def on_btnFileNew(*args):
     if _debug:
@@ -226,6 +299,7 @@ def on_btnFileNew(*args):
     current_filename = ""
     _w1.TNotebook1.tab(currenttab, text="Unknown")
     on_btnClear()
+
 
 def on_btnFileOpen(*args):
     if _debug:
@@ -273,6 +347,7 @@ def on_btnFileOpen(*args):
     _top1.title(f"{programName} - {version} - {basefile}")
     _w1.TNotebook1.tab(currenttab, text=basefile)
 
+
 def on_btnFileSave(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnFileSave")
@@ -281,7 +356,11 @@ def on_btnFileSave(*args):
         sys.stdout.flush()
     global current_filename, basefile
 
-    contents = ed1.text.get(1.0, END)
+    if currenttab == 0:
+        editorToUse = ed1
+    elif currenttab == 1:
+        editorToUse = ed2
+    contents = editorToUse.text.get(1.0, END)
     if current_filename == "":
         # ask filename and location
         file_path = asksaveasfilename(
@@ -305,7 +384,7 @@ def on_btnFileSave(*args):
                 print(f"File saved to: {file_path}")
             basefile = os.path.basename(file_path)
             _top1.title(f"{programName} - {version} - {basefile} - Saved")
-            _w1.TNotebook1.tab(0, text=basefile)
+            _w1.TNotebook1.tab(currenttab, text=basefile)
 
         else:
             print("Save operation cancelled.")
@@ -315,11 +394,13 @@ def on_btnFileSave(*args):
         if _debug:
             print(f"File Write complete")
     _top1.title(f"{programName} - {version} - {basefile} - Saved")
-    _w1.TNotebook1.tab(0, text=basefile)
+    _w1.TNotebook1.tab(currenttab, text=basefile)
+
 
 def write_file(filename, strng):
     with open(filename, "w") as f:
         f.write(strng)
+
 
 def read_file(filename):
     # ======================================================
@@ -331,6 +412,7 @@ def read_file(filename):
         lines = f.read()
     return lines
 
+
 def on_bthAbout(*args):
     if _debug:
         print("tkEditorDemo1_support.on_bthAbout")
@@ -338,6 +420,7 @@ def on_bthAbout(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
     _w1.frameAbout.lift()
+
 
 def on_btnHelp(*args):
     if _debug:
@@ -351,6 +434,7 @@ def on_btnHelp(*args):
     ico = messagebox.INFO
     messagebox.showinfo(titl, msg, parent=parent, icon=ico)
 
+
 def on_btnAboutDismiss(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnAboutDismiss")
@@ -359,14 +443,19 @@ def on_btnAboutDismiss(*args):
         sys.stdout.flush()
     _w1.frameAbout.lower()
 
+
 def on_btnFileSaveAs(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnFileSaveAs")
         for arg in args:
             print("    another arg:", arg)
         sys.stdout.flush()
+    if currenttab == 0:
+        editorToUse = ed1
+    elif currenttab == 1:
+        editorToUse = ed2
     current_filename = ""
-    contents = ed1.text.get(1.0, END)
+    contents = editorToUse.text.get(1.0, END)
     if current_filename == "":
         # ask filename and location
         file_path = asksaveasfilename(
@@ -390,7 +479,7 @@ def on_btnFileSaveAs(*args):
                 print(f"File saved to: {file_path}")
             basefile = os.path.basename(file_path)
             _top1.title(f"{programName} - {version} - {basefile} - Saved")
-            _w1.TNotebook1.tab(0, text=basefile)
+            _w1.TNotebook1.tab(currenttab, text=basefile)
         else:
             if _debug:
                 print("Save operation cancelled.")
@@ -401,7 +490,8 @@ def on_btnFileSaveAs(*args):
             print(f"File Write complete")
         basefile = os.path.basename(current_filename)
         _top1.title(f"{programName} - {version} - {basefile} - Saved")
-        _w1.TNotebook1.tab(0, text=basefile)
+        _w1.TNotebook1.tab(currenttab, text=basefile)
+
 
 def on_btnCommentColour(*args):
     if _debug:
@@ -419,6 +509,7 @@ def on_btnCommentColour(*args):
     cur_comment_color = choice[1]
     # Write to globals and config.toml
 
+
 def on_btnCurrentLineColour(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnCurrentLineColour")
@@ -433,6 +524,7 @@ def on_btnCurrentLineColour(*args):
     _w1.TlblClineBackground.configure(background=choice[1])
     cur_current_line_bg_color = choice[1]
     # Write to globals and config.toml
+
 
 def on_btnKeywordColour(*args):
     if _debug:
@@ -451,6 +543,7 @@ def on_btnKeywordColour(*args):
     cur_keyword_color = choice[1]
     # Write to globals and config.toml
 
+
 def on_btnPrefs(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnPrefs")
@@ -458,6 +551,7 @@ def on_btnPrefs(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
     _w1.framePrefs.lift()
+
 
 def on_btnStringColour(*args):
     if _debug:
@@ -474,6 +568,7 @@ def on_btnStringColour(*args):
     cur_string_color = choice[1]
     # Write to globals and config.toml
 
+
 def on_btnPrefDismiss(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnPrefDismiss")
@@ -482,6 +577,7 @@ def on_btnPrefDismiss(*args):
         sys.stdout.flush()
     _w1.framePrefs.lower()
 
+
 def on_btnPrefsIgnoreChanges(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnPrefsIgnoreChanges")
@@ -489,12 +585,32 @@ def on_btnPrefsIgnoreChanges(*args):
             print("    another arg:", arg)
         sys.stdout.flush()
 
+
 def on_btnPrefsSaveChanges(*args):
     if _debug:
         print("tkEditorDemo1_support.on_btnPrefsSaveChanges")
         for arg in args:
             print("    another arg:", arg)
         sys.stdout.flush()
+    # Create an enpty structure
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color, colorSet
+    colorSet = {}
+    colorSet = {
+        "keywordColor": cur_keyword_color,
+        "stringColor": cur_string_color,
+        "commentColor": cur_comment_color,
+        "lineBgColor": cur_current_line_bg_color,
+        "editorBgColor": cur_editor_bg_color,
+    }
+    ed1._update_editor_colours(colorSet)
+    print("Color Set Updated")
+    titl = f"{programName}"
+    msg = "ColorSet has been updated"
+    ico = messagebox.INFO
+    messagebox.showinfo(titl, msg, parent=_top1, icon=ico)
+    write_config()
+    ed2._update_editor_colours(colorSet)
+
 
 def on_btnEditorBGColour(*args):
     if _debug:
@@ -513,9 +629,44 @@ def on_btnEditorBGColour(*args):
     cur_editor_bg_color = choice[1]
     # Write to globals and config.toml
 
+
+def on_popCopy(*args):
+    if _debug:
+        print("tkEditorDemo1_support.on_popCopy")
+        for arg in args:
+            print("    another arg:", arg)
+        sys.stdout.flush()
+
+
+def on_popCut(*args):
+    if _debug:
+        print("tkEditorDemo1_support.on_popCut")
+        for arg in args:
+            print("    another arg:", arg)
+        sys.stdout.flush()
+
+
+def read_config():
+    global config
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color, colorSet
+    with open("config.toml", "r") as f:
+        config = toml.load(f)
+    print(f"{config=}")
+
+
+def write_config():
+    global config
+    global cur_keyword_color, cur_string_color, cur_comment_color, cur_current_line_bg_color, cur_editor_bg_color, colorSet
+    print(f" CurrentConfig:{config}")
+    # config["editor"][colorSet] = colorSet
+    config["editor"]["keyword_color"] = cur_keyword_color
+    config["editor"]["string_color"] = cur_string_color
+    config["editor"]["comment_color"] = cur_comment_color
+    config["editor"]["current_line_bg_color"] = cur_current_line_bg_color
+    config["editor"]["editor_bg_color"] = cur_editor_bg_color
+    with open("config.toml", "w") as f:
+        toml.dump(config, f)
+
+
 if __name__ == "__main__":
     tkEditorDemo1.start_up()
-
-
-
-

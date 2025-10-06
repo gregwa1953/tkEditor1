@@ -13,7 +13,7 @@
 # Original idea by Greg Walters
 # Original code by ChatGPT 5.0
 # Modified by Greg Walters
-# Version 0.1.1
+# Version 0.1.3
 # ===============================================================
 # Purpose:
 #    This file contains code to create a 'Metawidget' for Tkinter
@@ -185,7 +185,7 @@ class LineNumbers(tk.Canvas):
 # Main Editor Frame
 # ---------------------------
 class CodeEditor(tk.Frame):
-    __version__ = "0.1.1"
+    __version__ = "0.1.3"
     __license__ = "MIT"
     _debug = True
 
@@ -208,9 +208,12 @@ class CodeEditor(tk.Frame):
             wrap="none",
             font=("Courier", 12),
             undo=True,
+            background="#a2a2a2",
         )
 
         # link to editor so gutter can access fold info
+        self.text.configure(background="#a2a3a3")
+        # self.gutter_frame.configure(background="#a2a2a2")
         self.gutter_frame.editor = self
         self.text_frame.editor = self
 
@@ -227,7 +230,8 @@ class CodeEditor(tk.Frame):
         self.text.configure(xscrollcommand=self.hsb.set)
 
         # Line numbers gutter
-        self.linenumbers = LineNumbers(self.gutter_frame, self.text, bg="#f7f7f7")
+        # self.linenumbers = LineNumbers(self.gutter_frame, self.text, bg="#f7f7f7")
+        self.linenumbers = LineNumbers(self.gutter_frame, self.text, bg="#a2a2a2")
         self.linenumbers.pack(side="left", fill="y")
 
         self.vsb.pack(side="right", fill="y")
@@ -253,6 +257,8 @@ class CodeEditor(tk.Frame):
         self.text.bind("<MouseWheel>", self._on_mousewheel)
         self.text.bind("<Button-4>", self._on_mousewheel)  # linux
         self.text.bind("<Button-5>", self._on_mousewheel)
+
+        self.text.bind("Button-3", self.popup0)
 
     # ---------- view/scroll helpers ----------
     def _on_vscroll(self, *args):
@@ -441,6 +447,18 @@ class CodeEditor(tk.Frame):
         self.string_fg_color = "#a31515"
         self.comment_fg_color = "#008000"
         self.currentLine_bg_color = "#f0f8ff"
+        self.background = "#a2a2a2"
+
+    def _update_editor_colours(self, colourSet):
+        print(colourSet)
+        self.keyword_fg_color = colourSet["keywordColor"]
+        self.string_fg_color = colourSet["stringColor"]
+        self.comment_fg_color = colourSet["commentColor"]
+        self.currentLine_bg_color = colourSet["lineBgColor"]
+        self.background = colourSet["editorBgColor"]
+        self.text.config(background=self.background)
+        self._do_highlight()
+        print("Colorset updated")
 
     # ---------- syntax highlighting ----------
     def _setup_tags(self):
@@ -557,9 +575,11 @@ class CodeEditor(tk.Frame):
         self._schedule_highlight(initial=True)
         return True
 
+    # ------------- Clear Editor ---------------
     def clear_editor(self):
         self.text.delete(1.0, END)
 
+    # ------------- Read file ------------------
     def read_file(self, filename=None):
         # ======================================================
         # function read_file()
@@ -570,11 +590,65 @@ class CodeEditor(tk.Frame):
             lines = f.read()
         return lines
 
+    # -------------get_version ------------------
     def get_version(self):
         return self.__version__
 
+    # ------------- get_licence ------------------
     def get_licence(self):
         return self.__license__
+
+    # ------------- Callback on_popCopy ------------------
+    def on_popCopy(self, *args):
+        pass
+
+    # ------------- Callback on_popCut ------------------
+    def on_popCut(self, *args):
+        pass
+
+    # ------------- Callback on_popPaste ------------------
+    def on_popPaste(self, *args):
+        # if _debug:
+        #     print("gkb_support.on_popCopy")
+        #     for arg in args:
+        #         print("    another arg:", arg)
+        #     sys.stdout.flush()
+        print(f"{args[0][0]}")
+        if args[0][0] == 1:
+            self.clipboard_clear()  # clear clipboard contents
+            sel_start, sel_end = self.text_ranges("sel")
+            if sel_start and sel_end:
+                self.clipboard_append(self.text.get(sel_start, sel_end))
+            else:
+                self.clipboard_append(self.text.get(1.0, END))
+
+    def popup0(self, event, *args, **kwargs):
+        self.Popupmenu1 = tk.Menu(
+            self.top,
+            activebackground="beige",
+            activeforeground="black",
+            disabledforeground="#797979",
+            tearoff=0,
+        )
+        self.Popupmenu1.add_command(
+            command=lambda: self.on_popCopy(args),
+            compound="left",
+            font="TkMenuFont",
+            label="Copy",
+        )
+        self.Popupmenu1.add_command(
+            command=lambda: self.on_popCut(args),
+            compound="left",
+            font="TkMenuFont",
+            label="Cut",
+        )
+        self.Popupmenu1.add_command(
+            compound="left",
+            font="TkMenuFont",
+            label="Paste",
+            command=lambda: self.on_popPaste(args),
+        )
+        self.Popupmenu1.post(event.x_root, event.y_root)
 
 
 # ---------------------------
