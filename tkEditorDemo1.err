@@ -1,0 +1,18 @@
+window name "t1" already exists in parent
+    while executing
+"frame $newpage"
+    (procedure "::::vTcl::widgets::ttk::notebook::edit::addItem" line 25)
+    invoked from within
+"::$cmds($top)::addItem $target($top)"
+    (procedure "::vTcl::itemEdit::addItem" line 7)
+    invoked from within
+"::vTcl::itemEdit::addItem .vTcl.itemEdit_1"
+    invoked from within
+".vTcl.itemEdit_1.fra34.but35 invoke"
+    ("uplevel" body line 1)
+    invoked from within
+"uplevel #0 [list $w invoke]"
+    (procedure "tk::ButtonUp" line 22)
+    invoked from within
+"tk::ButtonUp .vTcl.itemEdit_1.fra34.but35"
+    (command bound to event)

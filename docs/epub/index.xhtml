@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+
+<html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Welcome to tkEditor1 documentation</title>
+    <link rel="stylesheet" type="text/css" href="_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="_static/epub.css" /> 
+  </head><body>
+
+    <div class="document">
+      <div class="documentwrapper">
+          <div class="body" role="main">
+            
+  <section id="welcome-to-tkeditor1-documentation">
+<h1>Welcome to tkEditor1 documentation</h1>
+<p>This project was created by Greg Walters with the help of ChatGPT.</p>
+<img alt="_images/tkEditor1Demo1.png" src="_images/tkEditor1Demo1.png" style="width: 567.0px; height: 439.5px;" />
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Please note that this project (the tkEditor1 Metawidget and the demo program) is currently under development so things might change.  Please check back every once and a while to see if there are any changes.</p>
+</div>
+<section id="some-background">
+<h2>Some background</h2>
+<p>I originally wanted to create a small editor metawidget that had line numbers that other <strong>PAGE</strong> users (and other Tkinter programmers) could easily integrate into their own programs.  Another of the requirements was that there was the functionality of auto-indent using a user settable variable.  Luckily, one of the other features was at the suggestion of ChatGPT to ad syntax highlighting for Python.  It took a number of attempts for ChatGPT to get the coding correct and to the point I took over.</p>
+<p>One of my goals from the outset, was that the tkEditor1 metawidget not use any libraries outside of the standard internal Python libraries.  So far this goal has been maintained.</p>
+</section>
+<section id="the-tkeditordemo1-program">
+<h2>The tkEditorDemo1 program</h2>
+<p>The demo program itself has three frames that act as ‘windows’</p>
+<img alt="_images/tkEditor1Demo_About.png" src="_images/tkEditor1Demo_About.png" style="width: 567.0px; height: 439.5px;" />
+<p>There is nothing special about the About frame.</p>
+<img alt="_images/tkEditor1Demo_Prefs.png" src="_images/tkEditor1Demo_Prefs.png" style="width: 567.0px; height: 439.5px;" />
+<p>The Preferences frame, however has (at the moment) one Labelframe that allows the setting of various colours for the editor and another that allows the user to set the number spaces that should be used for the auto-indent.</p>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Changing the auto-indent <strong>ONLY</strong> sets the indent level for <strong>NEW</strong> empty documents only.</p>
+</div>
+<p>The demo program uses the <strong>“Norwegian Lift”</strong> feature of PAGE 8.x to raise various frames to the top of the Widget stack to make it look like the all other frames have disappeared and that the new frame is at the forefront.</p>
+</section>
+<section id="using-tkeditor1-metawidget">
+<h2>Using tkEditor1 Metawidget</h2>
+<p>Using the tkEditor1 Metawidget in your own project is very simple, especially if you are using PAGE to design your project.</p>
+<p>Where ever you want to have the tkEditor1 widget show up in your project, simply place an empty tk Frame or ttk TFrame.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">ed1</span> <span class="o">=</span> <span class="n">tkEditor1</span><span class="o">.</span><span class="n">CodeEditor</span><span class="p">(</span><span class="n">_w1</span><span class="o">.</span><span class="n">frameEd1</span><span class="p">,</span> <span class="n">indent_width</span><span class="o">=</span><span class="mi">4</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>You have just enabled the metawidget into your program.  (The indent_width parameter is optional).</p>
+<p>If you want to modify the colour set, like from the Prefs Frame, simply call the editor _update_editor_colours() method passing the colourset object.</p>
+<p>You can also access the metawidget version and license constants by using the following code in your program…</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">libVer</span> <span class="o">=</span> <span class="n">ed1</span><span class="o">.</span><span class="n">get_version</span><span class="p">()</span>
+<span class="n">libLic</span> <span class="o">=</span> <span class="n">ed1</span><span class="o">.</span><span class="n">get_licence</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>Here is the class definition and init functions.  You should be able to easily change things to fit your needs.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="k">class</span><span class="w"> </span><span class="nc">CodeEditor</span><span class="p">(</span><span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">):</span>
+   <span class="n">__version__</span> <span class="o">=</span> <span class="s2">&quot;0.1.3&quot;</span>
+   <span class="n">__license__</span> <span class="o">=</span> <span class="s2">&quot;MIT&quot;</span>
+   <span class="k">global</span> <span class="n">_debug2</span>
+  <span class="n">_debug2</span> <span class="o">=</span> <span class="kc">False</span>
+
+   <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">master</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span> <span class="n">indent_width</span><span class="o">=</span><span class="mi">4</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">):</span>
+     <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">master</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+     <span class="bp">self</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">fill</span><span class="o">=</span><span class="s2">&quot;both&quot;</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+     <span class="c1"># Left: gutter, middle: text, right: vscroll</span>
+     <span class="bp">self</span><span class="o">.</span><span class="n">gutter_frame</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+     <span class="bp">self</span><span class="o">.</span><span class="n">gutter_frame</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="s2">&quot;y&quot;</span><span class="p">)</span>
+
+     <span class="bp">self</span><span class="o">.</span><span class="n">text_frame</span> <span class="o">=</span> <span class="n">tk</span><span class="o">.</span><span class="n">Frame</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+     <span class="bp">self</span><span class="o">.</span><span class="n">text_frame</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="n">side</span><span class="o">=</span><span class="s2">&quot;left&quot;</span><span class="p">,</span> <span class="n">fill</span><span class="o">=</span><span class="s2">&quot;both&quot;</span><span class="p">,</span> <span class="n">expand</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+     <span class="bp">self</span><span class="o">.</span><span class="n">_set_editor_colours</span><span class="p">()</span>
+
+     <span class="c1"># Use CodeText</span>
+     <span class="bp">self</span><span class="o">.</span><span class="n">text</span> <span class="o">=</span> <span class="n">CodeText</span><span class="p">(</span>
+         <span class="bp">self</span><span class="o">.</span><span class="n">text_frame</span><span class="p">,</span>
+         <span class="n">indent_width</span><span class="o">=</span><span class="n">indent_width</span><span class="p">,</span>
+         <span class="n">wrap</span><span class="o">=</span><span class="s2">&quot;none&quot;</span><span class="p">,</span>
+         <span class="n">font</span><span class="o">=</span><span class="p">(</span><span class="s2">&quot;Courier&quot;</span><span class="p">,</span> <span class="mi">12</span><span class="p">),</span>
+         <span class="n">undo</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+         <span class="n">background</span><span class="o">=</span><span class="s2">&quot;#a2a2a2&quot;</span><span class="p">,</span>
+     <span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="currently-known-issues-and-limitations">
+<h2>Currently known issues and limitations</h2>
+<p>I’m not terribly happy with the line fold code.  In my mind, it mostly works, but there is room for improvement.  The original ChatGPT code was clumsy and when code was folded, the line numbers over wrote each other leaving a mess.  I’ve gotten it somewhat fixed, but I want to do more.</p>
+<p>For example, here’s what the unwrapped code looks like…</p>
+<img alt="_images/UnWrapped1.png" src="_images/UnWrapped1.png" style="width: 383.0px; height: 312.0px;" />
+<p>And here is the wrapped code…</p>
+<img alt="_images/Wrapped1.png" src="_images/Wrapped1.png" style="width: 349.0px; height: 291.5px;" />
+<p>You can see there is a great deal more work to be done.</p>
+<p>I also want to add things like <strong>font</strong> and <strong>wrap</strong> to the initialization routine of the metawidget, and to the config.toml file in the demo program.  How soon this will happen is yet to be seen.</p>
+<p>As to limitations, the code fold routine and syntax highlight current <strong>only</strong> are supported for <strong>Python</strong> files.  One day, I might have time to look into supporting other file types like .tcl, .rst, and so on.</p>
+</section>
+<section id="copyright-and-license">
+<h2>Copyright and License</h2>
+<p>tkEditor1 and tkEditor1Demo1 are copyright © 2025, 2026 by Greg Walters and Designated Geek Software.</p>
+<p>They are both covered under the MIT license.</p>
+<div class="toctree-wrapper compound">
+</div>
+</section>
+</section>
+
+
+            <div class="clearer"></div>
+          </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+  </body>
+</html>

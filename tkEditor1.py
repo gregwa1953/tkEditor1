@@ -28,8 +28,12 @@
 # change without notice.  There are many things that I would like
 # to see changed from the original ChatGPT version.
 # ===============================================================
-# Last modified on October 5, 2025
+# Last modified on October 6, 2025
 # ---------------------------------------------------------------
+#    0.1.3 - Started popup copy, cut, and paste - NOT FULLY TESTED!
+#
+#
+#
 # For usage, see the tkEditorDemo1 program.
 # ---------------------------------------------------------------
 """
@@ -132,7 +136,7 @@ class LineNumbers(tk.Canvas):
         """Redraw line numbers and fold markers."""
         self.delete("all")
         self.fold_markers.clear()
-
+        inFold = False
         i = self.text_widget.index("@0,0")
         font = ("Courier", 12)
         while True:
@@ -142,9 +146,29 @@ class LineNumbers(tk.Canvas):
             y = dline[1]
             lineno = str(i).split(".")[0]
             # line number text
-            self.create_text(
-                4, y, anchor="nw", text=lineno, font=font, tags=("lineno",)
-            )
+
+            if inFold:
+
+                self.create_text(
+                    # 4, y, anchor="nw", text=lineno, font=font, tags=("lineno",)
+                    4,
+                    y,
+                    anchor="nw",
+                    text="",
+                    font=font,
+                    tags=("lineno",),
+                )
+            else:
+
+                self.create_text(
+                    # 4, y, anchor="nw", text=lineno, font=font, tags=("lineno",)
+                    4,
+                    y,
+                    anchor="nw",
+                    text=lineno,
+                    font=font,
+                    tags=("lineno",),
+                )
             # fold marker: small triangle if a foldable block starts here
             if self.master.editor.is_foldable_line(int(lineno)):
                 # draw small triangle marker
@@ -155,14 +179,45 @@ class LineNumbers(tk.Canvas):
                 if self.master.editor.is_line_folded(int(lineno)):
                     # right-pointing triangle (collapsed)
                     pts = (x0, y0, x1, y0 + size / 2, x0, y0 + size)
+                    inFold = True
                 else:
                     # down-pointing triangle (expanded)
                     pts = (x0, y0, x0 + size / 2, y0 + size, x0 + size, y0)
+                    self.create_text(
+                        4, y, anchor="nw", text=lineno, font=font, tags=("lineno",)
+                    )
+                    inFold = False
                 marker = self.create_polygon(
                     pts, outline="black", fill="black", tags=("foldmarker",)
                 )
+
                 # store mapping from marker id -> line
                 self.fold_markers[marker] = int(lineno)
+
+            # if self.master.editor.is_line_folded(int(lineno)):
+            # if inFold:
+            #     # pass
+            #     self.create_text(
+            #         # 4, y, anchor="nw", text=lineno, font=font, tags=("lineno",)
+            #         4,
+            #         y,
+            #         anchor="nw",
+            #         text="-",
+            #         font=font,
+            #         tags=("lineno",),
+            #     )
+            # else:
+
+            #     self.create_text(
+            #         # 4, y, anchor="nw", text=lineno, font=font, tags=("lineno",)
+            #         4,
+            #         y,
+            #         anchor="nw",
+            #         text=lineno,
+            #         font=font,
+            #         tags=("lineno",),
+            #     )
+
             i = self.text_widget.index(f"{i}+1line")
 
     def _on_click(self, event):
@@ -187,7 +242,8 @@ class LineNumbers(tk.Canvas):
 class CodeEditor(tk.Frame):
     __version__ = "0.1.3"
     __license__ = "MIT"
-    _debug = True
+    global _debug2
+    _debug2 = False
 
     def __init__(self, master=None, indent_width=4, **kwargs):
         super().__init__(master, **kwargs)
@@ -258,7 +314,7 @@ class CodeEditor(tk.Frame):
         self.text.bind("<Button-4>", self._on_mousewheel)  # linux
         self.text.bind("<Button-5>", self._on_mousewheel)
 
-        self.text.bind("Button-3", self.popup0)
+        self.text.bind("<Button-3>", self.popup0)
 
     # ---------- view/scroll helpers ----------
     def _on_vscroll(self, *args):
@@ -450,7 +506,9 @@ class CodeEditor(tk.Frame):
         self.background = "#a2a2a2"
 
     def _update_editor_colours(self, colourSet):
-        print(colourSet)
+        global _debug2
+        if _debug2:
+            print(colourSet)
         self.keyword_fg_color = colourSet["keywordColor"]
         self.string_fg_color = colourSet["stringColor"]
         self.comment_fg_color = colourSet["commentColor"]
@@ -458,7 +516,8 @@ class CodeEditor(tk.Frame):
         self.background = colourSet["editorBgColor"]
         self.text.config(background=self.background)
         self._do_highlight()
-        print("Colorset updated")
+        if _debug2:
+            print("Colorset updated")
 
     # ---------- syntax highlighting ----------
     def _setup_tags(self):
@@ -600,31 +659,45 @@ class CodeEditor(tk.Frame):
 
     # ------------- Callback on_popCopy ------------------
     def on_popCopy(self, *args):
-        pass
+
+        if _debug2:
+            print("gkb_support.on_popCopy")
+            for arg in args:
+                print("    another arg:", arg)
+        self.clipboard_clear()  # clear clipboard contents
+        sel_start, sel_end = self.text.tag_ranges("sel")
+        if sel_start and sel_end:
+            self.clipboard_append(self.text.get(sel_start, sel_end))
+        else:
+            self.clipboard_append(self.text.get(1.0, END))
+        print(f"{self.clipboard_get()=}")
 
     # ------------- Callback on_popCut ------------------
     def on_popCut(self, *args):
-        pass
+        self.clipboard_clear()
+        sel_start, sel_end = self.text.tag_ranges("sel")
+        try:
+            if sel_start and sel_end:
+                self.text.delete(sel_start, sel_end)
+        except:
+            pass
 
     # ------------- Callback on_popPaste ------------------
     def on_popPaste(self, *args):
-        # if _debug:
-        #     print("gkb_support.on_popCopy")
-        #     for arg in args:
-        #         print("    another arg:", arg)
-        #     sys.stdout.flush()
-        print(f"{args[0][0]}")
-        if args[0][0] == 1:
-            self.clipboard_clear()  # clear clipboard contents
-            sel_start, sel_end = self.text_ranges("sel")
-            if sel_start and sel_end:
-                self.clipboard_append(self.text.get(sel_start, sel_end))
-            else:
-                self.clipboard_append(self.text.get(1.0, END))
+        if _debug2:
+            print("tkEditor1.on_popPaste")
+            for arg in args:
+                print("    another arg:", arg)
+            # sys.stdout.flush()
+        dat = self.clipboard_get()
+        print(f"Clipboard {dat=}")
 
+        self.text.insert(CURRENT, dat)
+
+    # ----------- Actual Popup Menu -----------------
     def popup0(self, event, *args, **kwargs):
         self.Popupmenu1 = tk.Menu(
-            self.top,
+            self.master,
             activebackground="beige",
             activeforeground="black",
             disabledforeground="#797979",
